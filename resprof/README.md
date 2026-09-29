@@ -16,7 +16,7 @@ VRChatやVR関係プログラムで生じるGPUやRAMの負荷を測定し、そ
 ### プロジェクト構造
 `resprof/`<br>
 │<br>
-├─`src/`：プロゴラムのソースコード <br>
+├─`src/`：プログラムのソースコード <br>
 │　├─　`constants.hpp`：VR関連プログラム名のまとめ<br>
 │　├─　`main.cpp`：実引数の処理や、サンプリングの開始を担当<br>
 │　└─　`lib/`：コード整理<br>
@@ -27,7 +27,7 @@ VRChatやVR関係プログラムで生じるGPUやRAMの負荷を測定し、そ
 │　　　　└─　`impl/...`：上の `.hpp`ファイルそれぞれの実際の実行コード<br>
 │<br>
 ├─　`.clang-format`：コード書きの形式を指定（インデント、括弧の置き場、等）<br>
-├─　`.clang-tidy`：静的解釈ルールやコーディング規約を設定<br>
+├─　`.clang-tidy`：静的解析ルールやコーディング規約を設定<br>
 ├─　`.gitattributes`：gitでのプロジェクトファイルの扱い方を設定<br>
 ├─　`.gitignore`：Gitでアップロードしないファイルやフォルダーを指定<br>
 │<br>
@@ -40,12 +40,12 @@ VRChatやVR関係プログラムで生じるGPUやRAMの負荷を測定し、そ
 └─　`vcpkg.json`：パッケージマネージャの`vcpkg`の設定ファイル<br>
 
 [!IMPORTANT]
-> 2026/9/30の時点、Windowsロケール（言語）が**英語に設定**されたことを想定して作成しました。後で対応言語を増やすつもりなので、できるまで少々お待ちください。
+> 2026/9/30の時点、Windowsロケール（言語）が**英語に設定**されていることを想定して作成しました。後で対応言語を増やすつもりなので、できるまで少々お待ちください。
 
 # TODO
 ## プロファイラー
 ### 初期設定
-- [X] vspck設定
+- [X] vcpkg設定
 - [X] 引数読み込み及び処理
 - [X] 初期実行時、警告文句を表示
   - [X] 承認したら、レジストリに登録 (`HKEY_CURRENT_USER\Software\EKIMOCO\prof\wakatta\`, `DWORD`)
@@ -55,22 +55,22 @@ VRChatやVR関係プログラムで生じるGPUやRAMの負荷を測定し、そ
 - [ ] VRChat起動の時、EACに触らないかチェック
 
 ### VRChatと同期化
-- [ ] VRChat起動中に`%LocalAppDataLow&\VRChat\VRChat\output_log_yyyy-MM-dd_HH-mm-ss.txt`（以下「VRCログ」）で出力されるログをtail
+- [ ] VRChat起動中に`%USERPROFILE%\AppData\LocalLow\VRChat\VRChat\output_log_yyyy-MM-dd_HH-mm-ss.txt`（以下「VRCログ」）で出力されるログをtail
   - [ ] ユーザーIDを取得
   - [ ] ユーザーのフレンドたちのIDを取得（アバター表示条件の参照のため）
 - [ ] VRかデスクトップか把握
 - [ ] レジストリのキーと値の読み込み：
   - [ ] FOV（視野角）: `FIELD_OF_VIEW_h{hash}` - Little-Endian IEEE 754 Float (`QWORD`)
-  - [ ] 「アバターの最適化」→ <最適化されてにないアバターのブロック>：`VRC_AVATAR_PERFORMANCE_RATING_MINIMUM_TO_DISPLAY`:
+  - [ ] 「アバターの最適化」→ <最適化されていないアバターのブロック>：`VRC_AVATAR_PERFORMANCE_RATING_MINIMUM_TO_DISPLAY`:
     - 3：Poor以下
     - 4：Very Poor
     - 5：ブロックしない
-  - [ ] 「アバターの最適化」→ <最大ダウンロードサイズ>：`VRC_AVATAR_MAXIMUM_DOWMLOAD_SIZE_h{hash}` - `DWORD`（単位：Bytes）
+  - [ ] 「アバターの最適化」→ <最大ダウンロードサイズ>：`VRC_AVATAR_MAXIMUM_DOWNLOAD_SIZE_h{hash}` - `DWORD`（単位：Bytes）
   - [ ] 「アバターの最適化」→ <最大非圧縮サイズ>：`VRC_AVATAR_MAXIMUM_UNCOMPRESSED_SIZE_h{hash}` - `DWORD`（単位：Bytes）
   - [ ] 「アバターのカリング」→ <アバターを表示する距離> ON/OFF：`{userId}_avatarProxyShowAtRangeToggle_h{hash}` - `0`, `1` (`DWORD`)
-  - [ ] 「アバターのカリング」→ <アバターを表示する距離>　数値：`{userId}_avatarProxyShowAtRange_{hash}` - Little-Endian IEEE 754 Float (`QWORD`)
-  - [ ] 「アバターのカリング」→ <アバターを表示する距離> ON/OFF：`{userId}_currentShowMaxNumberOfAvatarsEnabled_h{hash}`
-  - [ ] 「アバターのカリング」→ <表示するアバターの数>　数値：`{userId}_avatarProxyShowMaxNumber_h{hash}` - 64-bit 定数 (`QWORD`)
+  - [ ] 「アバターのカリング」→ <アバターを表示する距離>　数値：`{userId}_avatarProxyShowAtRange_h{hash}` - Little-Endian IEEE 754 Float (`QWORD`)
+  - [ ] 「アバターのカリング」→ <表示するアバターの数> ON/OFF：`{userId}_currentShowMaxNumberOfAvatarsEnabled_h{hash}`
+  - [ ] 「アバターのカリング」→ <表示するアバターの数>　数値：`{userId}_avatarProxyShowMaxNumber_h{hash}` - 64-bit 整数 (`QWORD`)
   - [ ] 「アバターのカリング」→ <フレンドのアバターを常に表示>：`{userId}_avatarProxyAlwaysShowFriends_h{hash}`
   - [ ] 「アバターのカリング」→ <個別に表示したアバターを常に表示>：`{userId}_avatarProxyAlwaysShowExplicit_h{hash}`
   - [ ] 「シールドレベル」：`VRC_SAFETY_LEVEL_h{hash}`
@@ -78,14 +78,14 @@ VRChatやVR関係プログラムで生じるGPUやRAMの負荷を測定し、そ
     - 2: Normal
     - 4: None
     - 5: Custom
-  - [ ] （内部設定・UI上にて操作不可）アバターとの距離の程度ででダウンロードを優先 ON/OFF：`VRC_DOWNLOAD_PRIORITIZE_DISTANCE_ENABLED` - `0`, `1` (`DWORD`)
-  - [ ] （内部設定・UI上にて操作不可）アバターとの距離の程度ででダウンロードを優先 距離数値：`VRC_PRIORITIZE_DOWNLOAD_DISTANCE_h{hash}` - Little-Endian IEEE 754 Float  
+  - [ ] （内部設定・UI上にて操作不可）アバターとの距離の程度でダウンロードを優先 ON/OFF：`VRC_DOWNLOAD_PRIORITIZE_DISTANCE_ENABLED` - `0`, `1` (`DWORD`)
+  - [ ] （内部設定・UI上にて操作不可）アバターとの距離の程度でダウンロードを優先 距離数値：`VRC_PRIORITIZE_DOWNLOAD_DISTANCE_h{hash}` - Little-Endian IEEE 754 Float
   - [ ] （内部設定・UI上にて操作不可）フレンドのアバターのダウンロードを優先：`VRC_PRIORITIZE_FRIEND_DOWNLOAD_h{hash}` - `0`, `1` (`DWORD`)
   - [ ] （内部設定・UI上にて操作不可）個別に表示したアバターのダウンロードを優先：`VRC_PRIORITIZE_MANUAL_DOWNLOADS_h{hash}` - `0`, `1` (`DWORD`)
-  - [ ] （他に見探したら追加する）
+  - [ ] （他に見つけたら追加する）
 - [ ] ログの解釈ロジック、VRChatでのステータス追跡 (VRCXはこうやってるからセーフかも)
 - [ ] ワールド指定パラメータ作成 (`--wrld-id`)
-- [ ] 下のイベンドの開始時、記録する
+- [ ] 下のイベントの開始時、記録する
   - 指定されたワールドジョイン
   - アバター解凍
   - 他ユーザーのジョイン
@@ -95,15 +95,15 @@ VRChatやVR関係プログラムで生じるGPUやRAMの負荷を測定し、そ
 - [ ] `Debug.Log`での出力が、VRCログまで届くか確認
 - [ ] ユーザーの位置を追いかける透明シリンダーオブジェクト「`RemoteUserPos`」スクリプト作成
 - [ ] ローカルユーザーのカリングなどのアバター表示条件を確認
-- [ ] 下のイベンドの開始時、記録する
-  - [ ] ローカルユーザーの頭のPitchとYawをFOVに代入して、いずれかの`RemoteUserPos`が、いつからいつまで画面に映してるのか
-    - `RemoteUserPos`の`isVisible`値のを参照
-  - [ ] いずれかのワールドオブジェクトが、いつからいつまで画面に映してるのか
+- [ ] 下のイベントの開始時、記録する
+  - [ ] ローカルユーザーの頭のPitchとYawをFOVに代入して、いずれかの`RemoteUserPos`が、いつからいつまで画面に映っているのか
+    - `RemoteUserPos`の`isVisible`値を参照
+  - [ ] いずれかのワールドオブジェクトが、いつからいつまで画面に映っているのか
 
 # Python
 - [ ] ログファイルを読み込む
-- [ ] ログファイルと、各イベントに時間帯を連関さえる。
-- [ ] GUIやグラッフで見やすくまとめる。
+- [ ] ログファイルと各イベントの時間帯を関連させる
+- [ ] GUIやグラフで見やすくまとめる
 
 > このリストは未だ企画中です
 

@@ -1,0 +1,62 @@
+name: Build Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - release/*
+
+env:
+  packageName: "dev.ekimoco.vrc.world-profiler"
+  packagePath: "Packages/dev.ekimoco.vrc.world-profiler"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    
+      - name: Checkout
+        uses: actions/checkout@v7
+    
+      - name: get version
+        id: version
+        uses: notiz-dev/github-action-json-property@7c8cf5cc36eb85d8d287a8086a39dac59628eb31
+        with: 
+            path: "./package.json"
+            prop_path: "version"
+    
+      - name: Set Environment Variables
+        run: |
+          echo "zipFile=${{ env.packageName }}-${{ steps.version.outputs.prop }}".zip >> $GITHUB_ENV
+          echo "unityPackage=${{ env.packageName }}-${{ steps.version.outputs.prop }}.unitypackage" >> $GITHUB_ENV
+          
+      
+      - name: Create directory and move files
+        run: |
+          mkdir -p ${{env.packagePath}}
+          rsync -r --exclude="${{ env.packagePath }}" ./ "${{ env.packagePath }}"/
+        
+      - name: Create Zip
+        run: zip -r "$ZIP_NAME" . -x '.*'
+        working-directory: "Packages/${{env.packageName}}/"
+        env:
+          ZIP_NAME: "../../${{env.zipFile}}" # make the zip file two directories up, since we start two directories in above
+
+      - run: find "${{env.packagePath}}" -name \*.meta >> metaList
+          
+      - name: Create UnityPackage
+        uses: pCYSl5EDgo/create-unitypackage@cfcd3cf0391a5ef1306342794866a9897c32af0b
+        with:
+          package-path: ${{ env.unityPackage }}
+          include-files: metaList
+        
+        
+      - name: Make Release
+        uses: softprops/action-gh-release@1e07f4398721186383de40550babbdf2b84acfc5
+        with:
+          name: "World Profiler ${{ steps.version.outputs.prop }}"
+          tag_name: ${{ steps.version.outputs.prop }}
+          files: |
+            ${{ env.zipFile }}
+            ${{ env.unityPackage }}
+            ./package.json

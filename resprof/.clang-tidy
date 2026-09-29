@@ -1,0 +1,8 @@
+---
+Checks: 'bunprone-*,modernize-*,performance-*,readability-redundant-*'
+
+WarningsAsErrors: ''
+
+HeaderFilterExpression: ''
+AnalyzeTemporaryDtors: false
+FormatValues: false

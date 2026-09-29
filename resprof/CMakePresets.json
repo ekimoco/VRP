@@ -1,0 +1,31 @@
+{
+    "version": 8,
+    "configurePresets": [
+        {
+          "name": "mingw-debug",
+          "displayName": "MinGW UCRT64 Debug (vcpkg)",
+          "generator": "Ninja",
+          "binaryDir": "${sourceDir}/build/${presetName}",
+          "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+          "cacheVariables": {
+            "CMAKE_BUILD_TYPE": "Debug",
+            "CMAKE_CXX_COMPILER": "g++",
+            "VCPKG_TARGET_TRIPLET": "x64-mingw-static",
+            "VCPKG_HOST_TRIPLET": "x64-mingw-static",
+            "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}"
+          }
+        },
+        {
+            "name": "mingw-release",
+            "displayName": "MinGW UCRT64 Release (vcpkg)",
+            "inherits": "mingw-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        }
+    ],
+    "buildPresets": [
+        { "name": "mingw-debug", "configurePreset": "mingw-debug" },
+        { "name": "mingw-release", "configurePreset": "mingw-release" }
+    ]
+}

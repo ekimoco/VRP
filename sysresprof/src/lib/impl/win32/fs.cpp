@@ -1,24 +1,24 @@
-#include "winfs.hpp"
+#include "win32/fs.hpp"
 
 #include <boost/nowide/convert.hpp>
 #include <format>
 #include <fstream>
 #include <system_error>
 
-namespace fs = std::filesystem;
+namespace stdfs = std::filesystem;
 namespace nw = boost::nowide;
 
-fs::path winfs::ToPath(const std::string &utf8) {
-  return fs::path(nw::widen(utf8));
+stdfs::path win32::fs::ToPath(const std::string &utf8) {
+  return stdfs::path(nw::widen(utf8));
 }
 
-std::string winfs::FromPath(const fs::path &p) {
+std::string win32::fs::FromPath(const stdfs::path &p) {
   return nw::narrow(p.wstring());
 }
 
-bool winfs::ResolvePath(const std::string &in, std::string &out,
+bool win32::fs::ResolvePath(const std::string &in, std::string &out,
                         std::string &err) {
-  const fs::path input = ToPath(in);
+  const stdfs::path input = ToPath(in);
   if (input.has_root_name() && !input.has_root_directory()) {
     err = std::format(
         "'{}' はドライブ相対パスです。'{}\\...' の形式で指定してください。", in,
@@ -27,9 +27,9 @@ bool winfs::ResolvePath(const std::string &in, std::string &out,
   }
 
   std::error_code ec;
-  fs::path p = fs::absolute(input, ec);
+  stdfs::path p = stdfs::absolute(input, ec);
   if (!ec)
-    p = fs::weakly_canonical(p, ec);
+    p = stdfs::weakly_canonical(p, ec);
 
   if (ec) {
     err = std::format("cannot resolve '{}': {}", in, ec.message());
@@ -40,29 +40,29 @@ bool winfs::ResolvePath(const std::string &in, std::string &out,
   return true;
 }
 
-int winfs::GetFileType(const std::string &dir) noexcept {
+int win32::fs::GetFileType(const std::string &dir) noexcept {
   std::error_code ec;
-  const fs::path p = ToPath(dir);
+  const stdfs::path p = ToPath(dir);
   return GetFileType(p);
 }
 
-int winfs::GetFileType(const fs::path &path) noexcept {
+int win32::fs::GetFileType(const stdfs::path &path) noexcept {
   std::error_code ec;
 
-  if (fs::is_directory(path, ec))
+  if (stdfs::is_directory(path, ec))
     return FILETYPE_DIR;
-  if (fs::exists(path, ec))
+  if (stdfs::exists(path, ec))
     return FILETYPE_FILE;
   else
     return FILETYPE_NONE;
 }
 
-bool winfs::EnsureDirectory(const std::string &dir, std::string &err) {
+bool win32::fs::EnsureDirectory(const std::string &dir, std::string &err) {
   switch (GetFileType(dir)) {
   case FILETYPE_NONE: {
-    const fs::path p = ToPath(dir);
+    const stdfs::path p = ToPath(dir);
     std::error_code createEc;
-    fs::create_directories(p, createEc);
+    stdfs::create_directories(p, createEc);
 
     if (GetFileType(p) == FILETYPE_NONE) {
       err = std::format("フォルダー '{}'の生成に失敗しました: {}", dir,
@@ -82,14 +82,14 @@ bool winfs::EnsureDirectory(const std::string &dir, std::string &err) {
   return false;
 }
 
-bool winfs::EnsureFile(const std::string &path, std::string &err) {
+bool win32::fs::EnsureFile(const std::string &path, std::string &err) {
   switch (GetFileType(path)) {
   case FILETYPE_NONE: {
-    const fs::path fPath = ToPath(path);
-    const fs::path fParentPath = fPath.parent_path();
+    const auto fPath = ToPath(path);
+    const auto fParentPath = fPath.parent_path();
 
     std::error_code createEc;
-    fs::create_directories(fParentPath, createEc);
+    std::filesystem::create_directories(fParentPath, createEc);
     std::ofstream{fPath};
 
     if (GetFileType(fPath) == FILETYPE_NONE) {

@@ -26,7 +26,8 @@ inline constexpr ProgramDetails kMeta_OVRRedir            = { .name ="OVRRedir.e
 
 namespace Disclaimer {
 inline static const HKEY kWakattaRegRoot = HKEY_CURRENT_USER;
-inline static const std::string kWakattaRegSubkey = "Software\\EKIMOCO\\prof";
+inline static const std::string kWakattaRegSubkey =
+    "Software\\EKIMOCO\\sysresprof";
 inline static const std::string kWakattaRegKeyName = "wakatta";
 
 inline static const char *kWakattaPrompt =

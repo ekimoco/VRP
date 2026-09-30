@@ -3,7 +3,8 @@
 #include <filesystem>
 #include <string>
 
-namespace winfs {
+namespace win32 {
+namespace fs {
 
 inline constexpr const int FILETYPE_NONE = 0;
 inline constexpr const int FILETYPE_FILE = 1;
@@ -20,4 +21,5 @@ int GetFileType(const std::filesystem::path &dir) noexcept;
 bool EnsureDirectory(const std::string &dir, std::string &err);
 bool EnsureFile(const std::string &dir, std::string &err);
 
-} // namespace winfs
+} // namespace fs
+} // namespace win32

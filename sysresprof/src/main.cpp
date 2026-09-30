@@ -1,7 +1,9 @@
 #include "constants.hpp"
-#include "lib/process.hpp"
-#include "lib/win32.hpp"
-#include "lib/winfs.hpp"
+#include "lib/win32/proc.hpp"
+#include "lib/win32/global.hpp"
+#include "lib/win32/fs.hpp"
+#include "lib/win32/literals.hpp"
+#include "lib/win32/reg.hpp"
 
 #include <boost/nowide/args.hpp>
 #include <boost/nowide/iostream.hpp>
@@ -10,9 +12,11 @@
 #include <atomic>
 #include <charconv>
 #include <cstdint>
+#include <cstring>
 #include <ctime>
 #include <format>
 #include <fstream>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -23,6 +27,8 @@ namespace nw = boost::nowide;
 namespace {
 constexpr uint32_t kDefaultIntervalMs = 1000;
 constexpr uint32_t kMinIntervalMs = 50;
+
+std::atomic<bool> gRunning{false};
 bool gMakeDir = false;
 bool gDismissWarning = false;
 
@@ -35,9 +41,6 @@ struct Config {
   // clang-format off
     uint32_t                    intervalMs = kDefaultIntervalMs;
     std::string                 outDir     = ".";
-    std::vector<Target>         targets;
-    bool                        toStdout = false;
-    bool                        isUsingDefaultTarget = false;
   // clang-format on
 };
 
@@ -55,7 +58,7 @@ constexpr ProgramDetails kDefaultTargets[] = {
     ProgramExeNames::kMeta_OVRRedir};
 
 void AddTarget(std::vector<Target> &targets, std::string_view name) {
-  std::string key = process::NormalizeName(name);
+  std::string key = win32::literals::NormalizeName(name);
   for (const auto &t : targets)
     if (t.key == key)
       return;
@@ -93,44 +96,25 @@ void PrintUsage() {
       << "使用方法: gpumon [options]\n"
          "\n"
          "オプション:\n"
-         "    --interval <ミリ秒>   サンプリングの時間間隔 "
+         "    --interval <ミリ秒>           サンプリングの時間間隔 "
          "（単位：ミリ秒・1000分の1秒）を指定します。 \n"
          "　　　　　　　　　　　　　（デフォルト："
       << kDefaultIntervalMs << " ms, 最小 " << kMinIntervalMs
       << " ms）\n"
          "\n"
-         "    --out-dir <path>     "
+         "    --out-dir <path>              "
          "ログのファイルのファイルパスを指定します。（デフォルト：現在位置）\n"
          "\n"
-         "    --make-dir           "
+         "    --make-dir                    "
          "指定されたフォルダーが存在しない場合、新しく生成します。\n"
          "\n"
-         "    --track <name>       追跡するプログラムを指定します。\n"
-         "　　　　　　　　　　　　　（例：gpumon --track vrchat.exe "
-         "nantokavr.exe）\n"
-         "　　　　　　　　　　　　　（デフォルト：VR関連のプログラム名）\n"
+         "    --gpu <index>                 "
+         "記録対象のGPU（グラフィックスカード）を指定します。\n"
          "\n"
-         "    --stdout             "
-         "追跡途中でデータをこのコンソールに出力します。\n"
+         "    --track-disk <label>          "
+         "Disk IO（ディスクに対する入出力）の対象ディスクを指定します。"
          "\n"
-         "    -h, --help           このヘルプを出力します。\n"
-         "\n"
-         "例：\n"
-         "   ・gpumon --interval 500\n"
-         "       500 ms (0.5秒)ずつ、GPUの負荷を記録します。\n"
-         "   ・gpumon --interval 500 --track steamwebhelper.exe vrchat.exe\n"
-         "       500 "
-         "msずつ、steamwebhelper.exeとvrchat.exeのGPU負荷を記録します。\n"
-         "   ・gpumon --interval 500 --track vrchat.exe --stdout\n"
-         "       500 "
-         "msずつ、vrchat.exeのGPU負荷を記録しながら、コンソールに出力します。\n"
-         "\n"
-         "次は、\"--track\" "
-         "が入力されない場合に追跡するプログラム名のリストです：\n";
-
-  for (auto &p : kDefaultTargets) {
-    nw::cout << "　・" << p.name << ": " << p.description << "\n";
-  }
+         "    -h, --help                    このヘルプを出力します。\n";
 }
 
 ParseResult ParseArgs(int argc, char *argv[], Config &cfg) {
@@ -172,25 +156,6 @@ ParseResult ParseArgs(int argc, char *argv[], Config &cfg) {
       cfg.outDir = v;
     } else if (arg == "--make-dir") {
       gMakeDir = true;
-    } else if (arg == "--track") {
-      int taken = 0;
-      while (i + 1 < argc && argv[i + 1][0] != '-') {
-        const char *v = argv[++i];
-        // if it's the last str, throw error
-        if (*v == '\0') {
-          nw::cerr << "--track: 追跡するプログラム名を記入してください。\n";
-          return ParseResult::Error;
-        }
-        AddTarget(cfg.targets, v);
-        ++taken;
-      }
-
-      if (taken == 0) {
-        nw::cerr << "--track: 追跡するプログラム名を記入してください。\n";
-        return ParseResult::Error;
-      }
-    } else if (arg == "--stdout") {
-      cfg.toStdout = true;
     } else {
       nw::cerr << arg << ": 処理不可のオプションがありました。\n";
 
@@ -200,7 +165,7 @@ ParseResult ParseArgs(int argc, char *argv[], Config &cfg) {
   }
 
   std::string resolved, err;
-  if (!winfs::ResolvePath(cfg.outDir, resolved, err)) {
+  if (!win32::fs::ResolvePath(cfg.outDir, resolved, err)) {
     nw::cerr << "--out-dir: " << err << '\n';
     return ParseResult::Error;
   }
@@ -217,16 +182,36 @@ std::optional<bool> Ask(const std::string &prompt) {
   while (std::getline(nw::cin, line)) {
     if (!line.empty() && line.back() == '\r')
       line.pop_back();
-    if (line == "y" || line == "Y")
+    if (line == "y" || line == "Y" || line == "ｙ" || line == "Ｙ")
       return true;
-    if (line == "n" || line == "N")
+    if (line == "n" || line == "N" || line == "ｎ" || line == "Ｎ")
       return false;
-    nw::cout << "'Y'か'N'を入力してください：";
+    nw::cout << "「Y」か「N」を入力してください：";
   }
   return std::nullopt;
 }
 
 int main(int argc, char *argv[]) {
+  // Check if the program running elsewhere
+  std::vector <win32::proc::ProcessEntry > vProc;
+  std::string err;
+
+  if (!win32::proc::EnumerateProcesses(vProc, err)) {
+    nw::cout << err;
+    return 1;
+  }
+
+  std::string filename = std::filesystem::path(argv[0]).filename().string();
+  std::string pKey = win32::literals::NormalizeName(filename);
+
+  auto count = std::ranges::count_if(
+      vProc, [pKey](const win32::proc::ProcessEntry &p) { return p.key == pKey; });
+
+  if (count >= 2) {
+    nw::cout << "すでに実行されています。";
+    return 0;
+  }
+
   // Validate args and put to cfg
   nw::args utf8Args(argc, argv);
   Config cfg;
@@ -239,18 +224,11 @@ int main(int argc, char *argv[]) {
     break;
   }
 
-  if (cfg.targets.empty()) {
-    for (const auto pDetails : kDefaultTargets)
-      AddTarget(cfg.targets, pDetails.name);
-    cfg.isUsingDefaultTarget = true;
-  }
-
   // Setup
   std::optional<bool> yn{false};
-  std::string err;
 
-  switch (winfs::GetFileType(cfg.outDir)) {
-  case winfs::FILETYPE_NONE: {
+  switch (win32::fs::GetFileType(cfg.outDir)) {
+  case win32::fs::FILETYPE_NONE: {
     if (!gMakeDir) {
       yn = Ask(std::format("'{}'"
                            "は存在しない経路です。この名前でフォルダーを新"
@@ -264,17 +242,17 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    if (!winfs::EnsureDirectory(cfg.outDir, err)) {
+    if (!win32::fs::EnsureDirectory(cfg.outDir, err)) {
       nw::cerr << err << '\n';
       return 1;
     }
     break;
   }
 
-  case winfs::FILETYPE_DIR:
+  case win32::fs::FILETYPE_DIR:
     break;
 
-  case winfs::FILETYPE_FILE:
+  case win32::fs::FILETYPE_FILE:
     nw::cerr << std::format(
         "'{}'はファイルです。フォルダーを指定してください。\n", cfg.outDir);
     return 1;
@@ -282,6 +260,7 @@ int main(int argc, char *argv[]) {
 
   // wakatta
   uint32_t regVal;
+
   gDismissWarning = win32::reg::ReadRegVal(
       Disclaimer::kWakattaRegRoot, Disclaimer::kWakattaRegSubkey,
       Disclaimer::kWakattaRegKeyName, regVal);
@@ -304,18 +283,17 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  const std::string outPath = winfs::FromPath(
-      winfs::ToPath(cfg.outDir) / std::format("prof_{}.log", Timestamp()));
+  const std::string outPath = win32::fs::FromPath(
+      win32::fs::ToPath(cfg.outDir) / std::format("prof_{}.log", Timestamp()));
 
   nw::cout << "時間間隔　　　　：　" << cfg.intervalMs << " ms\n"
-           << "ファイルパス　　：　" << cfg.outDir << '\n'
-           << "ログファイル名　：　" << outPath << '\n'
-           << "コンソール出力　：　" << (cfg.toStdout ? "on" : "off") << '\n'
-           << "追跡するプログラムのリスト"
-           << (cfg.isUsingDefaultTarget ? "（デフォルト）" : "") << "：\n";
+           << "ログファイル名　：　" << outPath << '\n';
 
-  for (const auto &t : cfg.targets)
-    nw::cout << "   - " << t.name << '\n';
+  nw::cout << "サンプリングを始まります。";
+
+  while (!gRunning) {
+    
+  }
 
   return 0;
 }

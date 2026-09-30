@@ -12,4 +12,4 @@ if not exist "%BUILD_DIR%\build.ninja" (
 
 cmake --build --preset "%PRESET%" || exit /b
 
-"%BUILD_DIR%\resprof.exe" %*
+"%BUILD_DIR%\sysresprof.exe" %*

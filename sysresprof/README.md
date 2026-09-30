@@ -1,4 +1,4 @@
-# **resprof**
+# **sysresprof**
 ### VRChat想定GPU負荷測定プログラム
 
 VRChatやVR関係プログラムで生じるGPUやRAMの負荷を測定し、それぞれの数値をログに書き込みます。
@@ -14,14 +14,14 @@ VRChatやVR関係プログラムで生じるGPUやRAMの負荷を測定し、そ
 </details>
 
 ### プロジェクト構造
-`resprof/`<br>
+`sysresprof/`<br>
 │<br>
 ├─`src/`：プログラムのソースコード <br>
 │　├─　`constants.hpp`：VR関連プログラム名のまとめ<br>
 │　├─　`main.cpp`：実引数の処理や、サンプリングの開始を担当<br>
 │　└─　`lib/`：コード整理<br>
 │　　　　├─　`gpu.hpp`：GPUへの負荷を測定 (未完成)<br>
-│　　　　├─　`process.hpp`：プロセスの名前やステータスをリアルタイムで読み込む<br>
+│　　　　├─　`winproc.hpp`：プロセスの名前やステータスをリアルタイムで読み込む<br>
 │　　　　├─　`win32.hpp`：WIN32API関連コード<br>
 │　　　　├─　`winfs.hpp`：Windowsでのファイルシステム管理コード<br>
 │　　　　└─　`impl/...`：上の `.hpp`ファイルそれぞれの実際の実行コード<br>
@@ -48,7 +48,7 @@ VRChatやVR関係プログラムで生じるGPUやRAMの負荷を測定し、そ
 - [X] vcpkg設定
 - [X] 引数読み込み及び処理
 - [X] 初期実行時、警告文句を表示
-  - [X] 承認したら、レジストリに登録 (`HKEY_CURRENT_USER\Software\EKIMOCO\prof\wakatta\`, `DWORD`)
+  - [X] 承認したら、レジストリに登録 (`HKEY_CURRENT_USER\Software\EKIMOCO\sysresprof\wakatta\`, `DWORD`)
 
 ### サンプリング
 - [ ] GPUとRAMの負荷のサンプリング及びログ記録

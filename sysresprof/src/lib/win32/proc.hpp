@@ -1,11 +1,15 @@
 #pragma once
 
+#include <boost/nowide/convert.hpp>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
 
-namespace process {
+namespace nw = boost::nowide;
+
+namespace win32 {
+namespace proc {
 
 struct ProcessEntry {
   uint32_t pid;
@@ -14,7 +18,5 @@ struct ProcessEntry {
 };
 
 bool EnumerateProcesses(std::vector<ProcessEntry> &out, std::string &err);
-
-std::string NormalizeName(std::string_view name);
-
-} // namespace process
+} // namespace proc
+} // namespace win32

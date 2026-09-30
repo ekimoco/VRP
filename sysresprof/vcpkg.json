@@ -1,5 +1,5 @@
 {
-  "name": "resprof",
+  "name": "sysresprof",
   "version": "0.1.0",
   "dependencies": ["boost-nowide"]
 }

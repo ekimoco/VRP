@@ -1,17 +1,17 @@
 {
-	"name": "dev.ekimoco.vrc.world-profiler",
-	"version": "0.1.0",
-	"displayName": "World Profiler",
-	"author": {
-		"name": "EKIMOCO",
-		"email": "ekim@ekimoco.dev"
-	},
-	"description": "Periodically checks world and user events, then log through Debug.Log for resprof to parse",
-	"gitDependencies": {},
-	"vpmDependencies": {},
-	"legacyFolders": {},
-	"legacyFiles": {},
-	"type": "tool",
-	"unity": "2022.3",
-	"hideInEditor": false
+  "name": "dev.ekimoco.vrc.world-profiler",
+  "version": "0.1.0",
+  "displayName": "World Profiler",
+  "author": {
+    "name": "EKIMOCO",
+    "email": "ekim@ekimoco.dev"
+  },
+  "description": "Periodically checks world and user events, then log through Debug.Log for sysresprof to parse",
+  "gitDependencies": {},
+  "vpmDependencies": {},
+  "legacyFolders": {},
+  "legacyFiles": {},
+  "type": "tool",
+  "unity": "2022.3",
+  "hideInEditor": false
 }

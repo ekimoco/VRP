@@ -5,26 +5,36 @@ VRChatやVR関係プログラムで生じるGPUやRAMの負荷を測定し、そ
 
 <details>
   <summary>測定要素</summary>
-  <ul>
-    <li>3D使用率</li>
-    <li>専用GPUメモリ (VRAM)</li>
-    <li>共有GPUメモリ（Shared Memory）</li>
-    <li>GPUの温度</li>
-  </ul>
+
+- [ ] CPU使用率
+- [ ] RAM使用量
+- [ ] ディスク使用率
+- [ ] GPU
+  - [ ] 3D使用率
+  - [ ] 専用GPUメモリ (VRAM)
+  - [ ] 共有GPUメモリ（Shared Memory）
+  - [ ] GPUの温度
+
 </details>
 
 ### プロジェクト構造
 `sysresprof/`<br>
 │<br>
-├─`src/`：プログラムのソースコード <br>
+├─　`src/`：プログラムのソースコード<br>
 │　├─　`constants.hpp`：VR関連プログラム名のまとめ<br>
 │　├─　`main.cpp`：実引数の処理や、サンプリングの開始を担当<br>
 │　└─　`lib/`：コード整理<br>
-│　　　　├─　`gpu.hpp`：GPUへの負荷を測定 (未完成)<br>
-│　　　　├─　`winproc.hpp`：プロセスの名前やステータスをリアルタイムで読み込む<br>
-│　　　　├─　`win32.hpp`：WIN32API関連コード<br>
-│　　　　├─　`winfs.hpp`：Windowsでのファイルシステム管理コード<br>
-│　　　　└─　`impl/...`：上の `.hpp`ファイルそれぞれの実際の実行コード<br>
+│　　　　├─　`prof/`：プロファイリング関連<br>
+│　　　　│　└─　`sampler.hpp`：CPU・RAM・ディスク・GPUの使用率をサンプリング (未完成)<br>
+│　　　　├─　`win32/`：WIN32API関連コード<br>
+│　　　　│　├─　`fs.hpp`：Windowsでのファイルシステム管理（パス変換、ファイル・フォルダー作成）<br>
+│　　　　│　├─　`global.hpp`：WIN32エラーコードをメッセージに変換<br>
+│　　　　│　├─　`hw.hpp`：CPU・GPUのハードウェア情報（GPUの種類、VRAM容量など）の取得、システム状態（プロセス一覧など）のスナップショット取得<br>
+│　　　　│　├─　`literals.hpp`：文字列の正規化（大文字化）と`_norm`リテラル<br>
+│　　　　│　├─　`proc.hpp`：プロセスの名前やPIDをリアルタイムで読み込む<br>
+│　　　　│　├─　`reg.hpp`：レジストリ値の読み書き<br>
+│　　　　│　└─　`uhandle.hpp`：WIN32ハンドルを自動で閉じるRAIIラッパー<br>
+│　　　　└─　`impl/...`：上の `.hpp`ファイルそれぞれの実際の実行コード（同じフォルダー構成）<br>
 │<br>
 ├─　`.clang-format`：コード書きの形式を指定（インデント、括弧の置き場、等）<br>
 ├─　`.clang-tidy`：静的解析ルールやコーディング規約を設定<br>
@@ -36,10 +46,10 @@ VRChatやVR関係プログラムで生じるGPUやRAMの負荷を測定し、そ
 ├─　`README.md`：_今読んでるよ！_<br>
 │<br>
 ├─　`run.bat`：ビルドを行い、プログラムを実行する。与えられた引数を注入する<br>
-├─　`run.sh`：`run.bat`と機能的に同じ。Bashやシェルターミナルでの実行用<br>
+├─　`reset_regkey.bat`：レジストリの`wakatta`を`0`にリセット（初期実行時の警告文句を再表示）<br>
 └─　`vcpkg.json`：パッケージマネージャの`vcpkg`の設定ファイル<br>
 
-[!IMPORTANT]
+> [!IMPORTANT]
 > 2026/9/30の時点、Windowsロケール（言語）が**英語に設定**されていることを想定して作成しました。後で対応言語を増やすつもりなので、できるまで少々お待ちください。
 
 # TODO

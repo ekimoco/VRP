@@ -1,8 +1,9 @@
 #include "constants.hpp"
-#include "lib/win32/proc.hpp"
-#include "lib/win32/global.hpp"
 #include "lib/win32/fs.hpp"
+#include "lib/win32/global.hpp"
+#include "lib/win32/hw.hpp"
 #include "lib/win32/literals.hpp"
+#include "lib/win32/proc.hpp"
 #include "lib/win32/reg.hpp"
 
 #include <boost/nowide/args.hpp>
@@ -15,18 +16,52 @@
 #include <cstring>
 #include <ctime>
 #include <format>
-#include <fstream>
 #include <ranges>
 #include <string>
 #include <string_view>
 #include <vector>
-#include <windows.h>
 
 namespace nw = boost::nowide;
 
 namespace {
 constexpr uint32_t kDefaultIntervalMs = 1000;
 constexpr uint32_t kMinIntervalMs = 50;
+
+//== String Helpers ==//
+std::string FormatGiB(uint64_t bytes) {
+  return std::format("{:.2f} GiB", bytes / double(1ull << 30));
+}
+
+// Same format Windows uses in GPU counter names: luid_0x00000000_0x0000DDD6
+std::string FormatLuid(uint64_t luid) {
+  return std::format("0x{:08X}_0x{:08X}", uint32_t(luid >> 32), uint32_t(luid));
+}
+
+std::string_view VendorName(uint32_t id) {
+  switch (id) {
+  case 0x10DE:
+    return "NVIDIA";
+  case 0x1002:
+    return "AMD";
+  case 0x8086:
+    return "Intel";
+  default:
+    return "不明";
+  }
+}
+
+std::string_view KindLabel(win32::hw::profile::GpuKind k) {
+  switch (k) {
+  case win32::hw::profile::GpuKind::Discrete:
+    return "ディスクリート（独立）";
+  case win32::hw::profile::GpuKind::Integrated:
+    return "内蔵";
+  default:
+    return "不明";
+  }
+}
+
+//== States and constants ==//
 
 std::atomic<bool> gRunning{false};
 bool gMakeDir = false;
@@ -56,16 +91,6 @@ constexpr ProgramDetails kDefaultTargets[] = {
     ProgramExeNames::kMeta_OVRServer_x64,
     ProgramExeNames::kMeta_OVRServiceLauncher,
     ProgramExeNames::kMeta_OVRRedir};
-
-void AddTarget(std::vector<Target> &targets, std::string_view name) {
-  std::string key = win32::literals::NormalizeName(name);
-  for (const auto &t : targets)
-    if (t.key == key)
-      return;
-
-  targets.push_back(
-      {.name = std::string(name.data(), name.size()), .key = std::move(key)});
-}
 
 std::string Timestamp() {
   const std::time_t t = std::time(nullptr);
@@ -193,7 +218,7 @@ std::optional<bool> Ask(const std::string &prompt) {
 
 int main(int argc, char *argv[]) {
   // Check if the program running elsewhere
-  std::vector <win32::proc::ProcessEntry > vProc;
+  std::vector<win32::proc::ProcessEntry> vProc;
   std::string err;
 
   if (!win32::proc::EnumerateProcesses(vProc, err)) {
@@ -201,11 +226,14 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  std::string filename = std::filesystem::path(argv[0]).filename().string();
-  std::string pKey = win32::literals::NormalizeName(filename);
+  std::string programName = win32::fs::ToPath((argv[0])).filename().string();
+  auto count = win32::proc::CountProcess(programName, err);
 
-  auto count = std::ranges::count_if(
-      vProc, [pKey](const win32::proc::ProcessEntry &p) { return p.key == pKey; });
+  if (!count) {
+    nw::cout << std::format("Failed counting program '{}': {}", programName,
+                            err);
+    return 1;
+  }
 
   if (count >= 2) {
     nw::cout << "すでに実行されています。";
@@ -289,11 +317,34 @@ int main(int argc, char *argv[]) {
   nw::cout << "時間間隔　　　　：　" << cfg.intervalMs << " ms\n"
            << "ログファイル名　：　" << outPath << '\n';
 
-  nw::cout << "サンプリングを始まります。";
+  nw::cout << "\n[ハードウェアプロフィール]\n";
+  auto profile = win32::hw::profile::GetProfile(err);
+  nw::cout << "- CPUの名前　　　：" << profile.cpuName << "\n"
+           << "- 論理コアの個数 ：" << profile.logicalCores << "\n"
+           << "- GPUの個数　　　：" << profile.gpuProfiles.size() << "\n";
 
-  while (!gRunning) {
-    
+  if (profile.gpuProfiles.size() > 0) {
+    for (const auto &g : profile.gpuProfiles) {
+      nw::cout << std::format("- GPU #{} ({})\n"
+                              "    - 種類：{}\n"
+                              "    - LUID：\n",
+                              g.index + 1, g.gpuName, KindLabel(g.kind));
+      for (auto luid : g.luids)
+        nw::cout << "        - " << FormatLuid(luid) << "\n";
+
+      nw::cout << std::format(
+          "    - ベンダー：{} (0x{:04X})\n"
+          "    - 専用GPUメモリ：{}\n"
+          "    - 共有GPUメモリ：{}\n"
+          "    - 専用システムメモリ：{}\n"
+          "    - 実用可能なメモリ：{}\n\n",
+          VendorName(g.vendorId), g.vendorId, FormatGiB(g.capDedicatedRam),
+          FormatGiB(g.capSharedRam), FormatGiB(g.capDedicatedSystemRam),
+          FormatGiB(g.EffectiveCap()));
+    }
   }
+
+  nw::cout << "サンプリングを始まります。";
 
   return 0;
 }

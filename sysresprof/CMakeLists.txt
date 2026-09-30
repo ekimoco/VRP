@@ -15,8 +15,6 @@ add_library(sysresprof_core STATIC
     src/lib/impl/win32/proc.cpp
     src/lib/impl/win32/reg.cpp
     src/lib/impl/win32/uhandle.cpp
-
-    src/lib/impl/prof/gpu.cpp
     src/lib/impl/prof/sampler.cpp
 )
 
@@ -27,7 +25,7 @@ target_include_directories(sysresprof_core
 
 target_compile_definitions(sysresprof_core PUBLIC WIN32_LEAN_AND_MEAN NOMINMAX)
 target_compile_options(sysresprof_core PRIVATE -Wall -Wextra)
-target_link_libraries(sysresprof_core PUBLIC Boost::nowide pdh dxgi advapi32)
+target_link_libraries(sysresprof_core PUBLIC Boost::nowide pdh dxgi d3d12 advapi32)
 
 add_executable(sysresprof src/main.cpp)
 target_compile_options(sysresprof PRIVATE -Wall -Wextra)

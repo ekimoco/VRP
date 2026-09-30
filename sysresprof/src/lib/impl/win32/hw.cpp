@@ -1,12 +1,111 @@
 #include "win32/hw.hpp"
 #include "win32/literals.hpp"
+#include "win32/reg.hpp"
+#include <boost/nowide/config.hpp>
+#include <d3d12.h>
+#include <dxgi.h>
+#include <format>
 #include <windows.h>
 #include <winternl.h>
 
 static_assert(sizeof(uint32_t) == sizeof(DWORD), "REG_DWORD must be 32-bit");
 
+namespace hwss = win32::hw::snapshot;
+namespace hwpf = win32::hw::profile;
+namespace nw = boost::nowide;
+
 namespace {
-// NTSTATUS and type shit. VERY messy so not exposing on the public side... wtf
+hwpf::GpuKind DetectKind(IDXGIAdapter1 *adapter, const DXGI_ADAPTER_DESC1 &d) {
+  ID3D12Device *device = nullptr;
+  if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0,
+                                  IID_PPV_ARGS(&device)))) {
+    D3D12_FEATURE_DATA_ARCHITECTURE arch{};
+    arch.NodeIndex = 0;
+    HRESULT hr = device->CheckFeatureSupport(D3D12_FEATURE_ARCHITECTURE, &arch,
+                                             sizeof(arch));
+    device->Release();
+    if (SUCCEEDED(hr))
+      return arch.UMA ? hwpf::GpuKind::Integrated : hwpf::GpuKind::Discrete;
+  }
+
+  // Reached when D3D12 isn't available or the query failed
+  constexpr uint64_t kOneGiB = 1ull << 30;
+  if (d.DedicatedVideoMemory < kOneGiB)
+    return hwpf::GpuKind::Integrated;
+  return hwpf::GpuKind::Unknown;
+}
+
+std::string ReadCpuName(std::string &err) {
+  std::string regVal;
+
+  LSTATUS regSetResult = win32::reg::ReadRegValWithStatus(
+      HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0",
+      "ProcessorNameString", regVal);
+
+  if (regSetResult != ERROR_SUCCESS) {
+    err += "CPU name registry read failed (" + std::to_string(regSetResult) +
+           "); ";
+    return "Unknown CPU";
+  }
+  return regVal;
+}
+
+std::vector<hwpf::GpuProfile> ReadGpus(std::string &err) {
+  std::vector<hwpf::GpuProfile> out;
+
+  IDXGIFactory1 *factory = nullptr;
+  HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(&factory));
+  if (FAILED(hr)) {
+    err += "CreatedDXGIFactory1 failed; ";
+    return out;
+  }
+
+  for (UINT i = 0;; ++i) {
+    IDXGIAdapter1 *adapter = nullptr;
+    hr = factory->EnumAdapters1(i, &adapter);
+    if (hr == DXGI_ERROR_NOT_FOUND)
+      break; // no more adapters
+    if (FAILED(hr)) {
+      err += "EnumAdapters1 failed; ";
+      break;
+    }
+
+    DXGI_ADAPTER_DESC1 d{};
+    if (SUCCEEDED(adapter->GetDesc1(&d)) &&
+        !(d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
+      uint64_t luid = (uint64_t(uint32_t(d.AdapterLuid.HighPart)) << 32) |
+                      d.AdapterLuid.LowPart;
+
+      // Same hardware IDs = same physical card seen through a virtual display
+      auto existing = std::find_if(out.begin(), out.end(), [&](const auto &g) {
+        return g.vendorId == d.VendorId && g.deviceId == d.DeviceId &&
+               g.subSysId == d.SubSysId && g.revision == d.Revision;
+      });
+
+      if (existing != out.end()) {
+        existing->luids.push_back(luid);
+      } else {
+        hwpf::GpuProfile g;
+        g.index = static_cast<uint8_t>(out.size());
+        g.luids.push_back(luid);
+        g.vendorId = d.VendorId;
+        g.deviceId = d.DeviceId;
+        g.subSysId = d.SubSysId;
+        g.revision = d.Revision;
+        g.gpuName = nw::narrow(d.Description);
+        g.kind = DetectKind(adapter, d);
+        g.capDedicatedRam = d.DedicatedVideoMemory;
+        g.capDedicatedSystemRam = d.DedicatedSystemMemory;
+        g.capSharedRam = d.SharedSystemMemory;
+        out.push_back(std::move(g));
+      }
+    }
+    adapter->Release();
+  }
+  factory->Release();
+  return out;
+}
+
 constexpr NTSTATUS STATUS_SUCCESS_CODE = static_cast<NTSTATUS>(0x0000'0000);
 constexpr NTSTATUS STATUS_INFO_LENGTH_MISMATCH =
     static_cast<NTSTATUS>(0xC000'0004);
@@ -33,14 +132,16 @@ struct PROF_SYSTEM_PROCESS_INFORMATION {
 };
 } // namespace
 
-bool win32::hw::CaptureSnapshot(SysSnapshot &out, uint32_t err) {
+bool hwss::CaptureSnapshot(SysSnapshot &out, uint32_t err) {
   HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
   if (!hNtdll)
     return false;
 
   auto NtQuerySystemInformation =
       reinterpret_cast<PFN_NT_QUERY_SYSTEM_INFORMATION>(
-          GetProcAddress(hNtdll, "NtQuerySystemInformation"));
+          reinterpret_cast<void (*)()>(
+              GetProcAddress(hNtdll, "NtQuerySystemInformation")));
+
   if (!NtQuerySystemInformation)
     return false;
 
@@ -70,7 +171,7 @@ bool win32::hw::CaptureSnapshot(SysSnapshot &out, uint32_t err) {
   out.processes.clear();
 
   while (pCurrent) {
-  win32::proc::ProcessEntry entry{};
+    win32::proc::ProcessEntry entry{};
     entry.pid = HandleToULong(pCurrent->UniqueProcessId);
 
     /*
@@ -92,7 +193,6 @@ bool win32::hw::CaptureSnapshot(SysSnapshot &out, uint32_t err) {
     which we can put in nw::narrow
     */
 
-    size_t charCount = pCurrent->ImageName.Length / sizeof(wchar_t);
     if (pCurrent->ImageName.Buffer != nullptr &&
         pCurrent->ImageName.Length > 0) {
 
@@ -111,4 +211,17 @@ bool win32::hw::CaptureSnapshot(SysSnapshot &out, uint32_t err) {
         reinterpret_cast<uint8_t *>(pCurrent) + pCurrent->NextEntryOffset);
   }
   return true;
+}
+
+const hwpf::SystemProfile &hwpf::GetProfile(std::string &err) {
+  static std::string initErr;
+  static const SystemProfile profile = [] {
+    SystemProfile p;
+    p.cpuName = ReadCpuName(initErr);
+    p.logicalCores = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+    p.gpuProfiles = ReadGpus(initErr);
+    return p;
+  }();
+  err = initErr;
+  return profile;
 }

@@ -4,8 +4,10 @@
 #include "win32/literals.hpp"
 #include "win32/hw.hpp"
 
+#include <algorithm>
 #include <boost/nowide/convert.hpp>
 #include <dxgi.h>
+#include <ranges>
 #include <tlhelp32.h>
 #include <windows.h>
 
@@ -41,4 +43,19 @@ bool win32::proc::EnumerateProcesses(std::vector<ProcessEntry> &out,
   } while (Process32NextW(snap.get(), &pe));
 
   return true;
+}
+
+std::optional<uint64_t> win32::proc::CountProcess(std::string &pName,
+                                                  std::string &err) {
+  std::vector<ProcessEntry> vProc;
+
+  if (!EnumerateProcesses(vProc, err))
+    return std::nullopt;
+
+  std::string pKey = win32::literals::NormalizeName(pName);
+
+  auto count = std::ranges::count_if(
+      vProc, [pKey](const ProcessEntry &p) { return pKey == p.key; });
+
+  return count;
 }

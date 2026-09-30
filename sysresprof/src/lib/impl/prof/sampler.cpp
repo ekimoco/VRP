@@ -7,12 +7,13 @@
 namespace hw = win32::hw;
 
 namespace {
-// Hypothetic
+
 std::vector<win32::proc::ProcessEntry> gProcEntries;
-std::vector<hw::SysSnapshot> gSnapshots;
+std::vector<hw::snapshot::SysSnapshot> gSnapshots;
+
 } // namespace
 
-bool sampler::GetSystemUsage(std::span<SampleData> &out, std::string &err) {
+bool sampler::GetSystemUsage(std::vector<SampleData> &out, std::string &err) {
   // init gEntries
   if (!gProcEntries.empty())
     gProcEntries.clear();
@@ -21,6 +22,7 @@ bool sampler::GetSystemUsage(std::span<SampleData> &out, std::string &err) {
     return false;
 
   for (auto& proc : gProcEntries) {
-    SampleData sample;
+    // TODO: Sample
   }
+  return true;
 }
